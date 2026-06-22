@@ -1,0 +1,109 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+TOOL_DIR="${0:A:h}"
+SRC="$TOOL_DIR/SiriHotkeyHelper.m"
+CACHE_DIR="${HOME}/Library/Caches/siri-hotkey-tool"
+BIN="$CACHE_DIR/SiriHotkeyHelper"
+
+usage() {
+  cat <<'USAGE'
+siri-hotkey - modify the hidden macOS 27 Siri / Apple Intelligence keyboard shortcut
+
+Usage:
+  ./siri-hotkey status
+  ./siri-hotkey list
+  ./siri-hotkey set <mode>
+  ./siri-hotkey custom-sae <charCode> <keyCode> <modifiers>
+  ./siri-hotkey custom-standard <charCode> <keyCode> <modifiers>
+
+Common modes:
+  cmd-space             Command + Space
+  cmd-shift-space       Command + Shift + Space
+  cmd-option-space      Command + Option + Space
+  ctrl-option-space     Control + Option + Space
+  cmd-return            Command + Return
+  cmd-option-return     Command + Option + Return
+  right                 double right Command
+  left                  double left Command
+  either                double either Command, Apple's default
+  off                   disable the Siri shortcut
+
+Modifier masks for custom modes:
+  shift=131072, control=262144, option=524288, command=1048576, fn=8388608
+
+Examples:
+  ./siri-hotkey set cmd-space
+  ./siri-hotkey set right
+  ./siri-hotkey custom-sae 32 49 1179648   # Command + Shift + Space
+USAGE
+}
+
+build_helper() {
+  if [[ ! -f "$SRC" ]]; then
+    echo "Missing helper source: $SRC" >&2
+    exit 1
+  fi
+
+  mkdir -p "$CACHE_DIR"
+  if [[ ! -x "$BIN" || "$SRC" -nt "$BIN" ]]; then
+    if ! command -v clang >/dev/null 2>&1; then
+      echo "clang is required to build the helper. Install Xcode Command Line Tools first." >&2
+      exit 1
+    fi
+    clang -framework Foundation "$SRC" -o "$BIN"
+  fi
+}
+
+notify_changed() {
+  /usr/bin/notifyutil -p com.apple.Siri.KeyboardShortcutChanged 2>/dev/null || true
+}
+
+main() {
+  local cmd="${1:-help}"
+  case "$cmd" in
+    help|-h|--help)
+      usage
+      ;;
+    list)
+      usage
+      ;;
+    status|read|verify)
+      build_helper
+      "$BIN" status
+      ;;
+    set)
+      if [[ $# -ne 2 ]]; then
+        usage >&2
+        exit 64
+      fi
+      build_helper
+      "$BIN" "$2"
+      notify_changed
+      ;;
+    custom-sae)
+      if [[ $# -ne 4 ]]; then
+        usage >&2
+        exit 64
+      fi
+      build_helper
+      "$BIN" custom-sae "$2" "$3" "$4"
+      notify_changed
+      ;;
+    custom-standard)
+      if [[ $# -ne 4 ]]; then
+        usage >&2
+        exit 64
+      fi
+      build_helper
+      "$BIN" custom "$2" "$3" "$4"
+      notify_changed
+      ;;
+    *)
+      usage >&2
+      exit 64
+      ;;
+  esac
+}
+
+main "$@"
