@@ -1,5 +1,7 @@
 # Siri Hotkey Tool
 
+![Siri Hotkey Tool screenshot](assets/siri-hotkey-tool.png)
+
 Languages: [English](#english) | [中文](#中文)
 
 ## English
